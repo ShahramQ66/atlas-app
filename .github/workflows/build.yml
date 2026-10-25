@@ -1,4 +1,8 @@
-name: Build APK
+- name: Build APK
+  run: |
+    source venv/bin/activate
+    export P4A_RELEASE_CHANNEL=master
+    buildozer -v android debugname: Build APK
 on:
   push:
     branches: [ main ]
