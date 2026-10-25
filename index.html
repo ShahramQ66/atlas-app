@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تحلیل‌گر اطلس</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Tahoma,sans-serif;background:#0a0e1a;color:#e8eaf0;padding:14px;direction:rtl;font-size:15px}
+.card{background:#141b2e;border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid #1f2a44}
+.card h2{font-size:16px;color:#4dd4a9;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #1f2a44}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1a2540}
+.row:last-child{border-bottom:none}
+.row .k{color:#8892a8}
+.row .v{font-weight:600;color:#fff}
+.row .v.pos{color:#4dd4a9}
+.row .v.neg{color:#ff6b6b}
+.btn{display:block;width:100%;padding:14px;margin-top:10px;border:none;border-radius:10px;font-size:16px;font-weight:bold;color:#fff;cursor:pointer;font-family:inherit}
+.btn-primary{background:#3b9ed8}
+.btn-success{background:#3db87d}
+.btn:disabled{opacity:.5}
+.ig{margin-bottom:12px}
+.ig label{display:block;color:#8892a8;font-size:13px;margin-bottom:6px}
+.ig input{width:100%;padding:10px;background:#0a0e1a;border:1px solid #1f2a44;border-radius:8px;color:#fff;font-family:inherit;font-size:14px;direction:ltr}
+.status{text-align:center;padding:8px;color:#8892a8;font-size:13px;margin-bottom:8px}
+.warn{background:rgba(255,165,0,.1);border:1px solid rgba(255,165,0,.3);color:#ffb84d;padding:10px;border-radius:8px;margin:6px 0;font-size:13px}
+.action{text-align:center;font-size:17px;font-weight:bold;padding:14px;border-radius:10px;margin-bottom:12px}
+.action.buy{background:rgba(77,212,169,.15);color:#4dd4a9;border:1px solid #4dd4a9}
+.action.wait{background:rgba(59,158,216,.15);color:#3b9ed8;border:1px solid #3b9ed8}
+.action.danger{background:rgba(255,107,107,.15);color:#ff6b6b;border:1px solid #ff6b6b}
+.loader{text-align:center;padding:20px}
+.spin{display:inline-block;width:30px;height:30px;border:3px solid #1f2a44;border-top-color:#4dd4a9;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="status" id="time">—</div>
+<div class="action wait" id="action">در حال دریافت...</div>
+
+<div class="card">
+  <h2>قیمت و NAV</h2>
+  <div class="row"><span class="k">آخرین معامله</span><span class="v" id="lt">—</span></div>
+  <div class="row"><span class="k">قیمت پایانی</span><span class="v" id="cl">—</span></div>
+  <div class="row"><span class="k">تغییر روزانه</span><span class="v" id="dp">—</span></div>
+  <div class="row"><span class="k">NAV ابطال</span><span class="v" id="nr">—</span></div>
+  <div class="row"><span class="k">NAV صدور</span><span class="v" id="ns">—</span></div>
+  <div class="row"><span class="k">اختلاف با NAV</span><span class="v" id="pr">—</span></div>
+</div>
+
+<div class="card">
+  <h2>معاملات</h2>
+  <div class="row"><span class="k">حجم امروز</span><span class="v" id="vol">—</span></div>
+  <div class="row"><span class="k">ارزش (ریال)</span><span class="v" id="val">—</span></div>
+  <div class="row"><span class="k">نسبت حجم</span><span class="v" id="vr">—</span></div>
+</div>
+
+<div class="card">
+  <h2>امتیاز</h2>
+  <div class="row"><span class="k">مجموع</span><span class="v" id="score">—</span></div>
+  <div id="warns"></div>
+</div>
+
+<div class="card">
+  <h2>تنظیمات</h2>
+  <div class="ig"><label>Bale Token</label><input type="text" id="token" placeholder="123456789:AAH..." dir="ltr"></div>
+  <div class="ig"><label>Chat ID</label><input type="text" id="chat" placeholder="987654321" dir="ltr"></div>
+  <div class="ig"><label>INS Code</label><input type="text" id="ins" placeholder="11427939669935844" dir="ltr"></div>
+  <button class="btn btn-primary" onclick="saveCfg()">ذخیره تنظیمات</button>
+</div>
+
+<button class="btn btn-success" id="rbtn" onclick="run()">تحلیل الان</button>
+<div class="loader" id="loader" style="display:none"><div class="spin"></div><div style="margin-top:10px;color:#8892a8">در حال دریافت...</div></div>
+
+<script>
+const BASE="https://cdn.tsetmc.com/api";
+let cfg={token:"",chat:"",ins:"11427939669935844"};
+let lastAct=null;
+
+function loadCfg(){
+  try{const s=localStorage.getItem("atlas_cfg");if(s)cfg=Object.assign(cfg,JSON.parse(s));}catch(e){}
+  document.getElementById("token").value=cfg.token;
+  document.getElementById("chat").value=cfg.chat;
+  document.getElementById("ins").value=cfg.ins;
+}
+function saveCfg(){
+  cfg.token=document.getElementById("token").value.trim();
+  cfg.chat=document.getElementById("chat").value.trim();
+  cfg.ins=document.getElementById("ins").value.trim()||"11427939669935844";
+  localStorage.setItem("atlas_cfg",JSON.stringify(cfg));
+  alert("ذخیره شد");
+}
+function fnum(v){return(v==null||isNaN(v))?"—":Math.round(v).toLocaleString("en-US");}
+async function fj(u){const r=await fetch(u,{headers:{Accept:"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}
+function fd(d,ks){if(d&&typeof d==="object"&&!Array.isArray(d)){for(const k of ks){if(d[k]&&typeof d[k]==="object"&&!Array.isArray(d[k]))return d[k];}}return{};}
+function fl(d,ks){if(Array.isArray(d))return d;if(d&&typeof d==="object"){for(const k of ks){if(Array.isArray(d[k]))return d[k];}}return[];}
+
+async function fetchAll(ins){
+  const [p,n,h]=await Promise.all([
+    fj(`${BASE}/ClosingPrice/GetClosingPriceDaily/${ins}/0`),
+    fj(`${BASE}/Fund/GetETFByInsCode/${ins}`),
+    fj(`${BASE}/ClosingPrice/GetClosingPriceDailyList/${ins}/0`),
+  ]);
+  let price=fd(p,["closingPriceDaily","closingPrice","data"]);
+  let nav=fd(n,["etf","fund","data"]);
+  let hist=fl(h,["closingPriceDaily","closingPriceDailyList","data"]);
+  if(!Object.keys(price).length&&Array.isArray(p)&&p.length)price=p[0];
+  if(!Object.keys(nav).length&&Array.isArray(n)&&n.length)nav=n[0];
+  if(!Object.keys(price).length)throw new Error("داده قیمت خوانده نشد");
+  if(!Object.keys(nav).length)throw new Error("داده NAV خوانده نشد");
+  hist=hist.filter(x=>x&&typeof x==="object");
+  hist.sort((a,b)=>String(b.dEven||"").localeCompare(String(a.dEven||"")));
+  return{price,nav,hist};
+}
+
+function analyze(price,nav,hist){
+  const lt=parseFloat(price.pDrCotVal??price.lastPrice);
+  const cl=parseFloat(price.pClosing??price.closingPrice);
+  const ys=parseFloat(price.priceYesterday??price.yesterdayPrice);
+  const vol=parseFloat(price.qTotTran5J??price.volume);
+  const val=parseFloat(price.qTotCap??price.value);
+  const pd_=String(price.dEven||"?");
+  const nr=parseFloat(nav.pRedTran??nav.redemptionNAV);
+  const ns=parseFloat(nav.pSubTran??nav.subscriptionNAV);
+  const nd=String(nav.deven??nav.dEven??"?");
+  const dp=(cl&&ys)?(cl/ys-1)*100:null;
+  const pr=(lt&&nr)?(lt/nr-1)*100:null;
+  const rows=hist.map(r=>({d:String(r.dEven||""),c:parseFloat(r.pClosing??r.closingPrice),v:parseFloat(r.qTotTran5J??r.volume)})).filter(x=>x.c);
+  rows.sort((a,b)=>b.d.localeCompare(a.d));
+  let mc=null;if(rows.length>=5)mc=(rows[0].c/rows[4].c-1)*100;
+  let vr=null;
+  if(rows.length>=6){const vs=rows.slice(1,6).map(x=>x.v).filter(v=>v);if(vs.length){const av=vs.reduce((a,b)=>a+b,0)/vs.length;if(av)vr=rows[0].v/av*100;}}
+  let sc=0;
+  if(dp!==null)sc+=dp>=1?20:dp>0?14:dp>-1?5:0;
+  if(mc!==null)sc+=mc>=2?20:mc>0?14:mc>-2?6:0;
+  if(pr!==null)sc+=pr<=0?35:pr<=0.5?30:pr<=1?23:pr<=1.5?12:0;
+  if(vr!==null)sc+=vr>=130?15:vr>=100?12:vr>=70?8:3;
+  if(pd_===nd)sc+=10;
+  const w=[];
+  if(pd_!==nd)w.push("تاریخ قیمت و NAV یکسان نیست");
+  if(pr!==null&&pr>1.5)w.push("حباب نسبت به NAV");
+  if(dp!==null&&dp<-2)w.push("افت روزانه بیش از ۲٪");
+  if(vr!==null&&vr<50)w.push("حجم کمتر از نصف میانگین");
+  let act,cls;
+  if(pd_!==nd){act="احتیاط — تاریخ ناهمگون";cls="danger";}
+  else if(pr!==null&&pr>1.5){act="احتیاط — حباب";cls="danger";}
+  else if(sc>=75){act="نامزد بررسی خرید";cls="buy";}
+  else if(sc>=60){act="صبر و بررسی مجدد";cls="wait";}
+  else{act="ورود توصیه نمی‌شود";cls="danger";}
+  return{lt,cl,dp,nr,ns,pr,vol,val,vr,score:sc,act,cls,warns:w};
+}
+
+function setV(id,v,isP){
+  const e=document.getElementById(id);
+  if(v==null||isNaN(v)){e.textContent="—";e.className="v";}
+  else{e.textContent=isP?(v>=0?"+":"")+v.toFixed(2)+"%":fnum(v);e.className="v "+(isP?(v>=0?"pos":"neg"):"");}
+}
+
+async function sendBale(t,m){
+  if(!cfg.token||!cfg.chat)return false;
+  try{
+    const r=await fetch(`https://tapi.bale.ai/bot${cfg.token}/sendMessage`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({chat_id:cfg.chat,text:`📊 ${t}\n\n${m}`})
+    });
+    return r.ok;
+  }catch(e){console.error("Bale:",e);return false;}
+}
+
+async function run(){
+  const ld=document.getElementById("loader"),b=document.getElementById("rbtn");
+  ld.style.display="block";b.disabled=true;
+  try{
+    const{price,nav,hist}=await fetchAll(cfg.ins);
+    const a=analyze(price,nav,hist);
+    document.getElementById("time").textContent=new Date().toLocaleString("fa-IR");
+    setV("lt",a.lt);setV("cl",a.cl);setV("dp",a.dp,true);setV("nr",a.nr);setV("ns",a.ns);setV("pr",a.pr,true);
+    setV("vol",a.vol);setV("val",a.val);setV("vr",a.vr,true);
+    document.getElementById("score").textContent=a.score+"/100";
+    const ae=document.getElementById("action");ae.textContent=a.act;ae.className="action "+a.cls;
+    document.getElementById("warns").innerHTML=a.warns.map(x=>`<div class="warn">⚠️ ${x}</div>`).join("");
+    if(a.act!==lastAct){lastAct=a.act;if(cfg.token&&cfg.chat)await sendBale("تحلیل‌گر اطلس",`${a.act}\nامتیاز: ${a.score}/100\nآخرین معامله: ${fnum(a.lt)}`);}
+  }catch(e){
+    const ae=document.getElementById("action");
+    ae.textContent="خطا: "+e.message;ae.className="action danger";
+  }finally{ld.style.display="none";b.disabled=false;}
+}
+
+loadCfg();
+setTimeout(run,500);
+setInterval(run,300000);
+</script>
+</body>
+</html>
