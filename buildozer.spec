@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,html,json,png,jpg
 version = 1.0
 
-requirements = python3,kivy==2.2.1,cython==0.29.36
+requirements = python3,kivy==2.2.1,cython==0.29.33
 
 android.permissions = INTERNET
 android.api = 33
